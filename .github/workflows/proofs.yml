@@ -1,0 +1,48 @@
+name: proofs
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: no sorry / admit / axiom / native_decide
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan library sources
+        run: |
+          if grep -rnE '\bsorry\b|\badmit\b|^\s*axiom\b|native_decide' JustinSun --include=*.lean; then
+            echo "forbidden token found"; exit 1
+          fi
+
+  proof:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "Erdős 575 (complete)"
+            module: JustinSun.Erdos575.Main
+            check: Checks/Erdos575.lean
+          - name: "Quadrangle geometry (blueprint items 22–25)"
+            module: JustinSun.Erdos575.Geometry.LineSide
+            check: Checks/Erdos575Geometry.lean
+          - name: "Reduction to the two bounds of Theorem 1.1"
+            module: JustinSun.Erdos575.Assembly
+            check: Checks/Erdos575Reduction.lean
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch Mathlib build cache
+        run: lake exe cache get
+      - name: Build ${{ matrix.module }}
+        run: lake build JustinSun.AxiomAudit ${{ matrix.module }}
+      - name: Check statement and axioms
+        run: lake env lean ${{ matrix.check }}
